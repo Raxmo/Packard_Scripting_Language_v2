@@ -1,0 +1,8 @@
+[[chapter: begining]: [text: == In the Begining ==]],
+[[as: [[from: [character: main]]: [attribute: name]]]:
+[text:
+What where am I?
+]],
+[[display: [text: What should I do?]]:
+  [[option: [text: Continue]]: [goto: [section: continue]]]
+]

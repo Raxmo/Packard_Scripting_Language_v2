@@ -1,4 +1,0 @@
-[[define: [character: hero]]:
-  [[set: [attribute: name]]: [text: Hero]],
-  [[set: [attribute: age]]: [number: 25]]
-]

@@ -152,14 +152,7 @@ impl Parser {
                     let name = self.parse_until_bracket()?;
                     Expr::Chapter(name)
                 }
-                "display" => {
-                    let content = self.parse_expr()?;
-                    return Err(PslError::ParseError {
-                        line: 0,
-                        col: 0,
-                        message: "Display parsing not yet implemented".to_string(),
-                    });
-                }
+                "display" => self.parse_expr()?,
                 "if" => self.parse_expr()?,
                 "as" => self.parse_expr()?,
                 "option" => self.parse_expr()?,
