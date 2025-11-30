@@ -1,3 +1,0 @@
-[[display: [text: Hello]]:
-  [[option: [text: Ok]]: [goto: [section: next]]]
-]
