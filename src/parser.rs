@@ -182,8 +182,8 @@ impl Parser {
             };
 
             if !is_statement_form {
-                // Not a statement form, just parse the inner expression normally
-                let inner_expr = self.parse_bracketed_expr()?;
+                // Not a statement form, parse the full expression (which may include binary operators)
+                let inner_expr = self.parse_comparison_expr()?;
                 self.expect(Token::RBracket)?;
                 return Ok(inner_expr);
             }
