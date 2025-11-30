@@ -127,6 +127,23 @@ impl Parser {
         // Check for double-bracketed expression like [[keyword: ...]: body]
         // This happens when first token is also LBracket
         if self.current_token() == &Token::LBracket {
+            // Peek ahead to see the keyword and check if this is a statement form
+            let peek_pos = self.pos + 1;
+            let is_statement_form = if let Some(Token::Atom(kw)) = self.tokens.get(peek_pos) {
+                matches!(kw.as_str(),
+                    "define" | "set" | "add" | "chapter" | "display" | "if" | "as" | "option"
+                )
+            } else {
+                false
+            };
+
+            if !is_statement_form {
+                // Not a statement form, just parse the inner expression normally
+                let inner_expr = self.parse_bracketed_expr()?;
+                self.expect(Token::RBracket)?;
+                return Ok(inner_expr);
+            }
+
             // This is a statement with a body - parse the inner expression first
             self.expect(Token::LBracket)?;
             
@@ -296,6 +313,14 @@ impl Parser {
             "section" => {
                 let name = self.parse_until_bracket()?;
                 Expr::Section(name)
+            }
+            "goto" => {
+                // goto can take chapter: ... or section: ...
+                let target = self.parse_expr()?;
+                Expr::Keyword {
+                    name: "goto".to_string(),
+                    params: vec![("target".to_string(), target)],
+                }
             }
             "define" | "set" | "add" => {
                 // These should be handled via double-bracket syntax
