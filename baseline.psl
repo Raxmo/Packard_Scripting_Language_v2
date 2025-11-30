@@ -1,0 +1,79 @@
+// an example of a character definition allong witht the different data types and variable types
+[[define: [character: main]]:
+	[[set: [attribute: name]]: [text: Hero]],
+	[[define: [container: bag]]:
+		[[set: [attribute: sword]]: [item:]], // Items hold no data, they simply exist, or don't
+		[[set: [attribute: books]]: [number: 3]],
+		[[set: [attribute: money]]: [number: 10.25]],
+		[[set: [attribute: isAvailable]]: [flag: on]]
+	]
+],
+// this is a chapter marker, it will display what the display text reads and wait for user input to continue
+[[chapter: begining]: [text: == In the Begining ==]], // <-- no `""` needed, the string is implied
+[[as: [[from: [character: main]]: [attribute: name]]]: // <-- this will "title" the text as the main character's name
+[text:
+What where am I?
+]]
+[[display: [text: What should I do?]]: // <-- clears screen and displays given text, as well as the list of following tags
+	// here we have a list of options, and this list is displayed and takes user input to select one to execute
+	[[option: [text: Start Over]]: [goto: [chapter: begining]]],
+	[[option: [text: Continue on]]: [goto: [section: contnue]]]
+],
+[section: continue], // <-- no special display properties, but does clear the screen before moving on
+[[as:]:
+[text:
+The world around you swirls, and coallesses into... nothing?
+]],
+[[display: [text: what do now?]]:
+	[[if: [exists: [[from: [[from: [character: main]]: [container: bag]]]: [attribute: sword]]]]:
+		[[option: [text: Swing Sword]]: [goto: [section: fight]]]
+	],
+	[[if: [[[from: [[from: [character: main]]: [container: bag]]]: [attribute: money]] > [number: 5]]]:
+		[[option: [text: Buy supplies]]: [goto: [section: shop]]]
+	],
+	[[option: [text: Read a book]]: [goto: [section: library]]]
+],
+[section: fight],
+[[as:]:
+[text:
+You grip the sword tightly and prepare for combat.
+]],
+[[set: [[from: [[from: [character: main]]: [container: bag]]]: [attribute: books]]: [[[from: [[from: [character: main]]: [container: bag]]]: [attribute: books]] - [number: 1]]],
+[[display: [text: You swing with fierce determination!]]:
+	[[option: [text: Victory!]]: [goto: [section: victory]]]
+],
+[section: shop],
+[[as:]:
+[text:
+You enter the marketplace with your coins in hand.
+]],
+[[set: [[from: [[from: [character: main]]: [container: bag]]]: [attribute: money]]: [[[from: [[from: [character: main]]: [container: bag]]]: [attribute: money]] - [number: 2.50]]],
+[[display: [text: You purchased supplies.]]:
+	[[option: [text: Continue]]: [goto: [section: continue]]]
+],
+[section: library],
+[[as:]:
+[text:
+You settle down and lose yourself in the pages of a good book.
+]],
+[[set: [[from: [[from: [character: main]]: [container: bag]]]: [attribute: books]]]: [[[from: [[from: [character: main]]: [container: bag]]]: [attribute: books]] - [number: 1]]],
+[[display: [text: You feel wiser now.]]:
+	[[option: [text: Continue]]: [goto: [section: continue]]]
+],
+[section: victory],
+[[as:]:
+[text:
+You emerge victorious from your struggle. The world seems brighter now.
+]],
+[[remove: [[from: [[from: [character: main]]: [container: bag]]]: [attribute: sword]]]],
+[[add: [[from: [[from: [character: main]]: [container: bag]]]: [attribute: key]]]: [item:]],
+[[as:]:
+[text:
+Your sword shatters against the ground, but a golden key materializes in your hand.
+]],
+[[display: [text: THE END]]:
+	[[option: [text: Start Over]]: [goto: [chapter: begining]]],
+	[[option: [text: The End]]: [goto: [section: ending]]]
+],
+[section: ending]
+

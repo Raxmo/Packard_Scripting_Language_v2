@@ -108,6 +108,11 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Text(name))
             }
+            Token::Comma => {
+                // Skip trailing/leading commas
+                self.advance();
+                self.parse_expr()
+            }
             other => Err(PslError::ParseError {
                 line: 0,
                 col: 0,
@@ -119,16 +124,107 @@ impl Parser {
     fn parse_bracketed_expr(&mut self) -> Result<Expr, PslError> {
         self.expect(Token::LBracket)?;
 
-        // Check for nested bracket (double-bracketed expression like [[define: ...]])
+        // Check for double-bracketed expression like [[keyword: ...]: body]
+        // This happens when first token is also LBracket
         if self.current_token() == &Token::LBracket {
-            return self.parse_bracketed_expr();
+            // This is a statement with a body - parse the inner expression first
+            self.expect(Token::LBracket)?;
+            
+            let keyword = match self.current_token() {
+                Token::Atom(name) => name.clone(),
+                other => {
+                    return Err(PslError::ParseError {
+                        line: 0,
+                        col: 0,
+                        message: format!("Expected keyword, found {:?}", other),
+                    })
+                }
+            };
+            self.advance();
+            self.expect(Token::Colon)?;
+
+            // Parse the target/argument for this statement
+            let target = match keyword.as_str() {
+                "define" => self.parse_expr()?,
+                "set" => self.parse_expr()?,
+                "add" => self.parse_expr()?,
+                "chapter" => {
+                    let name = self.parse_until_bracket()?;
+                    Expr::Chapter(name)
+                }
+                "display" => self.parse_expr()?,
+                "if" => self.parse_expr()?,
+                "as" => self.parse_expr()?,
+                "option" => self.parse_expr()?,
+                _ => self.parse_expr()?,
+            };
+
+            self.expect(Token::RBracket)?;
+
+            // Now expect a colon and parse the body
+            self.expect(Token::Colon)?;
+
+            // Parse body expressions until final RBracket
+            let mut body_exprs = Vec::new();
+            while self.current_token() != &Token::RBracket && self.current_token() != &Token::Eof {
+                body_exprs.push(self.parse_expr()?);
+                if self.current_token() == &Token::Comma {
+                    self.advance();
+                }
+            }
+
+            self.expect(Token::RBracket)?;
+
+            let body = if body_exprs.len() == 1 {
+                Box::new(body_exprs.into_iter().next().unwrap())
+            } else {
+                Box::new(Expr::SequenceExpr(body_exprs))
+            };
+
+            // Reconstruct the appropriate expression based on keyword
+            match keyword.as_str() {
+                "define" => {
+                    return Ok(Expr::Define {
+                        target: Box::new(target),
+                        body,
+                    })
+                }
+                "set" => {
+                    return Ok(Expr::Set {
+                        target: Box::new(target),
+                        value: body,
+                    })
+                }
+                "add" => {
+                    return Ok(Expr::Add {
+                        target: Box::new(target),
+                        value: body,
+                    })
+                }
+                "chapter" => {
+                    // Store chapter and display text
+                    return Ok(Expr::Keyword {
+                        name: "chapter".to_string(),
+                        params: vec![
+                            ("id".to_string(), target),
+                            ("body".to_string(), body.as_ref().clone()),
+                        ],
+                    })
+                }
+                _ => {
+                    return Ok(Expr::Keyword {
+                        name: keyword,
+                        params: vec![("body".to_string(), body.as_ref().clone())],
+                    })
+                }
+            }
         }
 
-        // Parse the keyword/operation
+        // Single-bracketed expression [keyword: ...]
         let keyword = match self.current_token() {
             Token::Atom(name) => name.clone(),
             Token::Colon => {
-                // This might be [[: ...] for unnamed expression
+                // This might be [: ...] for unnamed expression
                 self.expect(Token::Colon)?;
                 return self.parse_keyword_params("".to_string());
             }
@@ -180,9 +276,6 @@ impl Parser {
             }
             "item" => Expr::Item,
             "from" => self.parse_from_expr()?,
-            "define" => self.parse_define_expr()?,
-            "set" => self.parse_set_expr()?,
-            "add" => self.parse_add_expr()?,
             "remove" => self.parse_remove_expr()?,
             "character" => {
                 let name = self.parse_until_bracket()?;
@@ -204,6 +297,14 @@ impl Parser {
                 let name = self.parse_until_bracket()?;
                 Expr::Section(name)
             }
+            "define" | "set" | "add" => {
+                // These should be handled via double-bracket syntax
+                return Err(PslError::ParseError {
+                    line: 0,
+                    col: 0,
+                    message: format!("{} requires double-bracket syntax [[{}:...]: body]", keyword, keyword),
+                });
+            }
             _ => self.parse_keyword_params(keyword)?,
         };
 
@@ -216,14 +317,22 @@ impl Parser {
 
         while self.current_token() != &Token::RBracket && self.current_token() != &Token::Eof {
             match self.current_token() {
-                Token::Atom(s) => content.push_str(s),
+                Token::Atom(s) => {
+                    if !content.is_empty() {
+                        content.push(' ');
+                    }
+                    content.push_str(s);
+                    self.advance();
+                }
+                Token::Comma => break,
                 Token::LBracket => {
                     // Nested expression, need to handle it
                     break;
                 }
-                _ => {}
+                _ => {
+                    self.advance();
+                }
             }
-            self.advance();
         }
 
         Ok(content.trim().to_string())

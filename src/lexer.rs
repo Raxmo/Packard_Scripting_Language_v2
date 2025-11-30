@@ -102,11 +102,35 @@ impl Lexer {
             }
         }
 
-        // Special handling: atoms can contain bare string content until bracket
-        // For text values like: [text: This is content] the content is the atom
-        // This is context-dependent and will be handled by the parser
-
         atom
+    }
+
+    fn read_text_content(&mut self) -> String {
+        let mut content = String::new();
+        let mut first = true;
+
+        while let Some(ch) = self.current_char() {
+            match ch {
+                ']' | '[' => break,
+                ',' => break,
+                _ => {
+                    if ch.is_whitespace() && content.is_empty() {
+                        self.advance();
+                        continue;
+                    }
+                    if !first && ch.is_whitespace() && self.peek_char().map_or(false, |c| c == ']' || c == ',' || c == '[') {
+                        break;
+                    }
+                    if !ch.is_whitespace() {
+                        first = false;
+                    }
+                    content.push(ch);
+                    self.advance();
+                }
+            }
+        }
+
+        content.trim().to_string()
     }
 
     pub fn next_token(&mut self) -> Result<Token, PslError> {
@@ -177,31 +201,41 @@ impl Lexer {
                     return Ok(Token::Lt);
                 }
                 Some('=') => {
-                    self.advance();
-                    if self.current_char() == Some('=') {
+                    if self.peek_char() == Some('=') {
+                        self.advance();
                         self.advance();
                         return Ok(Token::EqEq);
+                    } else {
+                        // Treat as punctuation atom
+                        let mut atom = String::new();
+                        atom.push('=');
+                        self.advance();
+                        return Ok(Token::Atom(atom));
                     }
-                    return Err(PslError::LexError {
-                        line: self.line,
-                        col: self.col,
-                        message: "Unexpected '='. Did you mean '=='?".to_string(),
-                    });
                 }
                 Some('!') => {
-                    self.advance();
-                    if self.current_char() == Some('=') {
+                    // Check if this is !=
+                    if self.peek_char() == Some('=') {
+                        self.advance();
                         self.advance();
                         return Ok(Token::NotEq);
+                    } else {
+                        // Treat as punctuation atom
+                        let mut atom = String::new();
+                        atom.push('!');
+                        self.advance();
+                        return Ok(Token::Atom(atom));
                     }
-                    return Err(PslError::LexError {
-                        line: self.line,
-                        col: self.col,
-                        message: "Unexpected '!'. Did you mean '!='?".to_string(),
-                    });
                 }
                 Some(ch) if ch.is_alphanumeric() || ch == '_' => {
                     let atom = self.read_atom();
+                    return Ok(Token::Atom(atom));
+                }
+                Some(ch) if ch.is_ascii_punctuation() && ch != '[' && ch != ']' && ch != ':' && ch != ',' && ch != '+' && ch != '-' && ch != '*' && ch != '/' && ch != '>' && ch != '<' && ch != '=' && ch != '!' => {
+                    // Allow other punctuation in atoms for text content
+                    let mut atom = String::new();
+                    atom.push(ch);
+                    self.advance();
                     return Ok(Token::Atom(atom));
                 }
                 Some(ch) => {
