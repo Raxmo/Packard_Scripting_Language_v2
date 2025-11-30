@@ -101,6 +101,50 @@ impl Parser {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, PslError> {
+        self.parse_comparison_expr()
+    }
+
+    fn parse_comparison_expr(&mut self) -> Result<Expr, PslError> {
+        let mut left = self.parse_primary_expr()?;
+
+        // Check for comparison operators
+        loop {
+            let op = match self.current_token() {
+                Token::Gt => ">",
+                Token::Lt => "<",
+                Token::GtEq => ">=",
+                Token::LtEq => "<=",
+                Token::EqEq => "==",
+                Token::NotEq => "!=",
+                Token::Plus => "+",
+                Token::Minus => "-",
+                Token::Star => "*",
+                Token::Slash => "/",
+                _ => break,
+            };
+
+            self.advance();
+            let right = self.parse_primary_expr()?;
+
+            left = if matches!(op, ">" | "<" | ">=" | "<=" | "==" | "!=") {
+                Expr::ComparisonOp {
+                    op: op.to_string(),
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expr::ArithmeticOp {
+                    op: op.to_string(),
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            };
+        }
+
+        Ok(left)
+    }
+
+    fn parse_primary_expr(&mut self) -> Result<Expr, PslError> {
         match self.current_token() {
             Token::LBracket => self.parse_bracketed_expr(),
             Token::Atom(name) => {
@@ -111,7 +155,7 @@ impl Parser {
             Token::Comma => {
                 // Skip trailing/leading commas
                 self.advance();
-                self.parse_expr()
+                self.parse_primary_expr()
             }
             other => Err(PslError::ParseError {
                 line: 0,
@@ -131,7 +175,7 @@ impl Parser {
             let peek_pos = self.pos + 1;
             let is_statement_form = if let Some(Token::Atom(kw)) = self.tokens.get(peek_pos) {
                 matches!(kw.as_str(),
-                    "define" | "set" | "add" | "chapter" | "display" | "if" | "as" | "option"
+                    "define" | "set" | "add" | "chapter" | "display" | "if" | "as" | "option" | "from"
                 )
             } else {
                 false
@@ -165,6 +209,7 @@ impl Parser {
                 "define" => self.parse_expr()?,
                 "set" => self.parse_expr()?,
                 "add" => self.parse_expr()?,
+                "from" => self.parse_expr()?,
                 "chapter" => {
                     let name = self.parse_until_bracket()?;
                     Expr::Chapter(name)
@@ -216,6 +261,12 @@ impl Parser {
                     return Ok(Expr::Add {
                         target: Box::new(target),
                         value: body,
+                    })
+                }
+                "from" => {
+                    return Ok(Expr::From {
+                        base: Box::new(target),
+                        path: body,
                     })
                 }
                 "chapter" => {
@@ -319,6 +370,14 @@ impl Parser {
                 let target = self.parse_expr()?;
                 Expr::Keyword {
                     name: "goto".to_string(),
+                    params: vec![("target".to_string(), target)],
+                }
+            }
+            "exists" => {
+                // Check if something exists: [exists: [from: ...]]
+                let target = self.parse_expr()?;
+                Expr::Keyword {
+                    name: "exists".to_string(),
                     params: vec![("target".to_string(), target)],
                 }
             }
