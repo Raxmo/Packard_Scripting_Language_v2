@@ -87,15 +87,22 @@ impl GameEngine {
                 break;
             }
 
-            let choice = self.get_user_choice(&options)?;
-            
-            // Get the selected option
-            let (text, target) = options[choice].clone();
-            self.runtime.clear_output();
-            println!("\n> {}", text);
-            
-            // Navigate to the target and reset index
-            self.navigate_to_target(&target)?;
+            match self.get_user_choice(&options) {
+                Ok(choice) => {
+                    // Get the selected option
+                    let (text, target) = options[choice].clone();
+                    self.runtime.clear_output();
+                    println!("\n> {}", text);
+                    
+                    // Navigate to the target and reset index
+                    self.navigate_to_target(&target)?;
+                }
+                Err(PslError::RuntimeError(msg)) if msg == "End of input" => {
+                    // User reached EOF - exit gracefully
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
         }
 
         Ok(())
@@ -215,9 +222,28 @@ impl GameEngine {
             io::stdout().flush().unwrap();
 
             let mut input = String::new();
-            io::stdin().read_line(&mut input).ok();
+            match io::stdin().read_line(&mut input) {
+                Ok(0) => {
+                    // EOF reached - exit gracefully
+                    println!("\n[END OF STORY]");
+                    return Err(PslError::RuntimeError("End of input".to_string()));
+                }
+                Err(_) => {
+                    // Error reading input - try again
+                    println!("Error reading input. Please try again.");
+                    continue;
+                }
+                _ => {}
+            }
 
-            if let Ok(choice) = input.trim().parse::<usize>() {
+            let trimmed = input.trim();
+            if trimmed.is_empty() {
+                // Empty input - try again
+                println!("Invalid choice. Please try again.");
+                continue;
+            }
+
+            if let Ok(choice) = trimmed.parse::<usize>() {
                 if choice > 0 && choice <= options.len() {
                     return Ok(choice - 1);
                 }
