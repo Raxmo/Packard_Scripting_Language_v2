@@ -82,7 +82,6 @@ impl Parser {
             self.advance();
             Ok(())
         } else {
-            eprintln!("DEBUG: Expected {:?}, found {:?} at pos {}", expected, self.current_token(), self.pos);
             Err(PslError::ParseError {
                 line: 0,
                 col: 0,
@@ -197,34 +196,35 @@ impl Parser {
             self.expect(Token::LBracket)?;
             
             let keyword = keyword_str;
-            eprintln!("DEBUG: Parsing statement form '{}' at pos {}", keyword, self.pos);
             self.expect(Token::Atom(keyword.clone()))?;
             self.expect(Token::Colon)?;
-            eprintln!("DEBUG: About to parse {} target at pos {}", keyword, self.pos);
 
             // Parse the target/argument for this statement
-            let target = match keyword.as_str() {
-                "define" => self.parse_expr()?,
-                "set" => self.parse_expr()?,
-                "add" => self.parse_expr()?,
-                "from" => {
-                    eprintln!("DEBUG: Parsing 'from' base expression at pos {}", self.pos);
-                    let base = self.parse_expr()?;
-                    eprintln!("DEBUG: Parsed 'from' base, now at pos {}, current={:?}", self.pos, self.current_token());
-                    base
-                },
-                "chapter" => {
-                    let name = self.parse_until_bracket()?;
-                    Expr::Chapter(name)
+            // Some keywords (like 'as') might have an empty target (just a closing bracket)
+            let target = if self.current_token() == &Token::RBracket && matches!(keyword.as_str(), "as") {
+                // Empty target for 'as' statement - use a placeholder
+                Expr::Item
+            } else {
+                match keyword.as_str() {
+                    "define" => self.parse_expr()?,
+                    "set" => self.parse_expr()?,
+                    "add" => self.parse_expr()?,
+                    "from" => {
+                        let base = self.parse_expr()?;
+                        base
+                    },
+                    "chapter" => {
+                        let name = self.parse_until_bracket()?;
+                        Expr::Chapter(name)
+                    }
+                    "display" => self.parse_expr()?,
+                    "if" => self.parse_expr()?,
+                    "as" => self.parse_expr()?,
+                    "option" => self.parse_expr()?,
+                    _ => self.parse_expr()?,
                 }
-                "display" => self.parse_expr()?,
-                "if" => self.parse_expr()?,
-                "as" => self.parse_expr()?,
-                "option" => self.parse_expr()?,
-                _ => self.parse_expr()?,
             };
 
-            eprintln!("DEBUG parse_bracketed_expr: After parsing {} target, pos={}, current={:?}", keyword, self.pos, self.current_token());
             
             // For statement forms like [[keyword: target]: body], after parsing the target,
             // we're positioned right after the target expression.
@@ -240,30 +240,24 @@ impl Parser {
             // If the target was NOT a statement form, there will be an RBracket here
             if self.current_token() == &Token::RBracket {
                 self.advance(); // consume it
-                eprintln!("DEBUG: Consumed closing ] for [{}:...], now at pos={}, current={:?}", keyword, self.pos, self.current_token());
             }
             // If the target WAS a statement form, we're already past its closing brackets,
             // so we don't need to consume anything
             
             if self.current_token() == &Token::Colon {
                 // This is a full statement form: [[kw: target]: body]
-                eprintln!("DEBUG: Found colon for statement form '{}', parsing body at pos {}", keyword, self.pos);
                 self.advance(); // consume colon
                 
                 // Parse body expressions until final RBracket
                 let mut body_exprs = Vec::new();
                 while self.current_token() != &Token::RBracket && self.current_token() != &Token::Eof {
-                    eprintln!("DEBUG: Parsing body expr for '{}' at pos {}", keyword, self.pos);
                     body_exprs.push(self.parse_expr()?);
-                    eprintln!("DEBUG: Parsed body expr, now at pos {}, current={:?}", self.pos, self.current_token());
                     if self.current_token() == &Token::Comma {
                         self.advance();
                     }
                 }
 
-                eprintln!("DEBUG: Done with body, now at pos {}, expecting RBracket", self.pos);
                 self.expect(Token::RBracket)?;
-                eprintln!("DEBUG: Parsed complete statement form '{}', now at pos {}", keyword, self.pos);
 
                 let body = if body_exprs.len() == 1 {
                     Box::new(body_exprs.into_iter().next().unwrap())
@@ -317,9 +311,7 @@ impl Parser {
             } else {
                 // No colon after the target, so this is just a wrapped expression
                 // Close the outer bracket and return the target
-                eprintln!("DEBUG: No colon after {} target, closing outer bracket", keyword);
                 self.expect(Token::RBracket)?;
-                eprintln!("DEBUG: Returning {} as simple wrapped expression", keyword);
                 return Ok(target);
             }
         }
