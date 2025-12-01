@@ -19,8 +19,15 @@ impl Runtime {
     }
 
     pub fn execute(&mut self, program: Vec<Expr>) -> Result<(), PslError> {
-        for expr in program {
-            self.eval(&expr)?;
+        for (idx, expr) in program.iter().enumerate() {
+            match self.eval(expr) {
+                Ok(_) => {},
+                Err(e) => {
+                    return Err(PslError::RuntimeError(
+                        format!("Error executing expression {}: {} (expr: {:?})", idx, e, expr)
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -214,16 +221,22 @@ impl Runtime {
         
         // Handle From expressions as targets
         if let Expr::From { base, path } = target {
-            // For add, we need to get the existing value and combine with new value
-            let existing = self.get_via_path(base, path)?;
-            
-            // Type-specific addition
-            let result = match (existing, &val) {
-                (Value::Number(n), Value::Number(m)) => Value::Number(n + m),
-                (Value::Item, Value::Item) => Value::Item,
-                _ => return Err(PslError::TypeError(
-                    "Cannot add values of different types".to_string()
-                )),
+            // For add, try to get existing value; if it doesn't exist, just set the new value
+            let result = match self.get_via_path(base, path) {
+                Ok(existing) => {
+                    // Type-specific addition
+                    match (existing, &val) {
+                        (Value::Number(n), Value::Number(m)) => Value::Number(n + m),
+                        (Value::Item, Value::Item) => Value::Item,
+                        _ => return Err(PslError::TypeError(
+                            "Cannot add values of different types".to_string()
+                        )),
+                    }
+                }
+                Err(_) => {
+                    // If attribute doesn't exist, just use the new value
+                    val.clone()
+                }
             };
             
             return self.set_via_path(base, path, result);

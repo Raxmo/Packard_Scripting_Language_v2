@@ -48,6 +48,12 @@ fn run(source: &str) -> Result<(), PslError> {
 
     // Parse
     let program = parser::parse(tokens)?;
+    
+    if std::env::args().any(|a| a == "--debug-ast") {
+        for (i, expr) in program.iter().enumerate() {
+            eprintln!("Expr {}: {:?}", i, expr);
+        }
+    }
 
     // Execute
     let mut runtime = runtime::Runtime::new();
