@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::fmt;
+use serde::{Deserialize, Serialize};
 
 /// Represents a value in PSL
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Value {
     Text(String),
     Number(f64),

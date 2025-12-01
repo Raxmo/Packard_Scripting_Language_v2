@@ -22,7 +22,7 @@ fn main() {
         }
     };
 
-    match run_interactive(&source) {
+    match run_interactive(&source, filename) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("Error: {}", err);
@@ -31,8 +31,13 @@ fn main() {
     }
 }
 
-fn run_interactive(source: &str) -> Result<(), PslError> {
-    let mut engine = GameEngine::new(source)?;
+fn run_interactive(source: &str, filename: &str) -> Result<(), PslError> {
+    let mut engine = GameEngine::new(source, filename)?;
     engine.run_interactive()?;
     Ok(())
+}
+
+#[allow(dead_code)]
+fn run_interactive_impl(source: &str, filename: &str) -> Result<(), PslError> {
+    run_interactive(source, filename)
 }

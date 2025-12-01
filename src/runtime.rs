@@ -37,6 +37,29 @@ impl Runtime {
         self.pending_options.clear();
     }
 
+    pub fn get_globals(&self) -> HashMap<String, Value> {
+        self.globals.clone()
+    }
+
+    pub fn get_current_chapter(&self) -> Option<String> {
+        self.current_chapter.clone()
+    }
+
+    pub fn get_current_section(&self) -> Option<String> {
+        self.current_section.clone()
+    }
+
+    pub fn restore_state(&mut self, 
+        globals: HashMap<String, Value>,
+        current_chapter: Option<String>,
+        current_section: Option<String>,
+    ) -> Result<(), PslError> {
+        self.globals = globals;
+        self.current_chapter = current_chapter;
+        self.current_section = current_section;
+        Ok(())
+    }
+
 
     pub fn execute(&mut self, program: Vec<Expr>) -> Result<(), PslError> {
         for (idx, expr) in program.iter().enumerate() {

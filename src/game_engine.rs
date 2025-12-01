@@ -3,17 +3,19 @@ use crate::lexer::tokenize;
 use crate::parser::{parse, Expr};
 use crate::runtime::Runtime;
 use crate::error::PslError;
+use crate::save_state::GameState;
 
 /// Interactive game engine for PSL stories
 pub struct GameEngine {
     program: Vec<Expr>,
     runtime: Runtime,
     current_index: usize,
+    story_file: String,
 }
 
 impl GameEngine {
     /// Create a new game engine from source code
-    pub fn new(source: &str) -> Result<Self, PslError> {
+    pub fn new(source: &str, story_file: &str) -> Result<Self, PslError> {
         let tokens = tokenize(source)?;
         let program = parse(tokens)?;
         
@@ -21,7 +23,43 @@ impl GameEngine {
             program,
             runtime: Runtime::new(),
             current_index: 0,
+            story_file: story_file.to_string(),
         })
+    }
+
+    /// Load a game from a saved state
+    pub fn from_save(source: &str, save_path: &str) -> Result<Self, PslError> {
+        let tokens = tokenize(source)?;
+        let program = parse(tokens)?;
+        let saved_state = GameState::load(save_path)?;
+
+        let mut engine = GameEngine {
+            program,
+            runtime: Runtime::new(),
+            current_index: saved_state.current_index,
+            story_file: saved_state.metadata.story_file.clone(),
+        };
+
+        // Restore runtime state
+        engine.runtime.restore_state(
+            saved_state.globals,
+            saved_state.current_chapter,
+            saved_state.current_section,
+        )?;
+
+        Ok(engine)
+    }
+
+    /// Save the current game state
+    pub fn save(&self, save_path: &str) -> Result<(), PslError> {
+        let mut state = GameState::new(self.story_file.clone(), "autosave".to_string());
+        state.current_index = self.current_index;
+        state.globals = self.runtime.get_globals();
+        state.current_chapter = self.runtime.get_current_chapter();
+        state.current_section = self.runtime.get_current_section();
+
+        state.save(save_path)?;
+        Ok(())
     }
 
     /// Run the game interactively

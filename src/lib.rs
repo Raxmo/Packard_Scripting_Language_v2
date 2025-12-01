@@ -4,6 +4,7 @@ pub mod value;
 pub mod runtime;
 pub mod error;
 pub mod game_engine;
+pub mod save_state;
 
 #[cfg(test)]
 mod tests;
