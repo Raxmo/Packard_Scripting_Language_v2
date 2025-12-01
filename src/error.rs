@@ -15,6 +15,7 @@ pub enum PslError {
     RuntimeError(String),
     TypeError(String),
     NameError(String),
+    #[allow(dead_code)]
     AccessError(String),
 }
 

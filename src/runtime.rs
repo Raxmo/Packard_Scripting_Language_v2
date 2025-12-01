@@ -32,23 +32,28 @@ impl Runtime {
         &self.pending_options
     }
 
+    #[allow(dead_code)]
     pub fn clear_output(&mut self) {
         self.output.clear();
         self.pending_options.clear();
     }
 
+    #[allow(dead_code)]
     pub fn get_globals(&self) -> HashMap<String, Value> {
         self.globals.clone()
     }
 
+    #[allow(dead_code)]
     pub fn get_current_chapter(&self) -> Option<String> {
         self.current_chapter.clone()
     }
 
+    #[allow(dead_code)]
     pub fn get_current_section(&self) -> Option<String> {
         self.current_section.clone()
     }
 
+    #[allow(dead_code)]
     pub fn restore_state(&mut self, 
         globals: HashMap<String, Value>,
         current_chapter: Option<String>,

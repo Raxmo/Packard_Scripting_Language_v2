@@ -14,6 +14,7 @@ pub enum Value {
 }
 
 impl Value {
+    #[allow(dead_code)]
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Value::Text(s) => Some(s),
@@ -21,6 +22,7 @@ impl Value {
         }
     }
 
+    #[allow(dead_code)]
     pub fn as_number(&self) -> Option<f64> {
         match self {
             Value::Number(n) => Some(*n),
@@ -28,6 +30,7 @@ impl Value {
         }
     }
 
+    #[allow(dead_code)]
     pub fn as_flag(&self) -> Option<bool> {
         match self {
             Value::Flag(b) => Some(*b),
@@ -35,10 +38,12 @@ impl Value {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_item(&self) -> bool {
         matches!(self, Value::Item)
     }
 
+    #[allow(dead_code)]
     pub fn as_container(&self) -> Option<&HashMap<String, Value>> {
         match self {
             Value::Container(map) => Some(map),
@@ -46,6 +51,7 @@ impl Value {
         }
     }
 
+    #[allow(dead_code)]
     pub fn as_container_mut(&mut self) -> Option<&mut HashMap<String, Value>> {
         match self {
             Value::Container(map) => Some(map),
@@ -53,6 +59,7 @@ impl Value {
         }
     }
 
+    #[allow(dead_code)]
     pub fn type_name(&self) -> &'static str {
         match self {
             Value::Text(_) => "text",
@@ -64,6 +71,7 @@ impl Value {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_truthy(&self) -> bool {
         match self {
             Value::Text(s) => !s.is_empty(),
