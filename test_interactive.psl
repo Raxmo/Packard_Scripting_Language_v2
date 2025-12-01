@@ -1,0 +1,59 @@
+// Interactive test story
+[[chapter: start]: [text: A Simple Choice]],
+
+[[as:]: [text:
+You stand at a crossroads. One path leads left, one leads right.
+]],
+
+[[display: [text: Which way do you go?]]:
+	[[option: [text: Go Left]]: [goto: [section: left]]],
+	[[option: [text: Go Right]]: [goto: [section: right]]]
+],
+
+[section: left],
+[[as:]: [text:
+You venture left and find a peaceful forest with tall trees.
+You have found an exit!
+]],
+
+[[display: [text: Return to the start?]]:
+	[[option: [text: Yes]]: [goto: [section: start]]],
+	[[option: [text: No]]: [goto: [section: ending]]]
+],
+
+[section: right],
+[[as:]: [text:
+You venture right and find yourself in a mysterious cave.
+Deep in the cave, you discover treasure!
+]],
+
+[[display: [text: Keep exploring or leave?]]:
+	[[option: [text: Keep exploring]]: [goto: [section: deeper]]],
+	[[option: [text: Leave]]: [goto: [section: ending]]]
+],
+
+[section: deeper],
+[[as:]: [text:
+Deep in the cave, you find an ancient map leading to lost civilizations.
+]],
+
+[[display: [text: What do you do with the map?]]:
+	[[option: [text: Keep it]]: [goto: [section: ending]]],
+	[[option: [text: Leave it]]: [goto: [section: ending]]]
+],
+
+[section: start],
+[[as:]: [text:
+You find yourself back at the crossroads again. Ready for another adventure?
+]],
+
+[[display: [text: Choose your path:]]:
+	[[option: [text: Left]]: [goto: [section: left]]],
+	[[option: [text: Right]]: [goto: [section: right]]]
+],
+
+[section: ending],
+[[as:]: [text:
+You leave the crossroads behind, taking your memories with you.
+Thus ends your adventure.
+]]

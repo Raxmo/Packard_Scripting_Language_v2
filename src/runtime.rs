@@ -32,6 +32,10 @@ impl Runtime {
         &self.pending_options
     }
 
+    pub fn clear_output(&mut self) {
+        self.output.clear();
+        self.pending_options.clear();
+    }
 
 
     pub fn execute(&mut self, program: Vec<Expr>) -> Result<(), PslError> {
