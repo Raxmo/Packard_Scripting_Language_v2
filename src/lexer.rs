@@ -21,6 +21,7 @@ pub enum Token {
 }
 
 impl Token {
+    #[allow(dead_code)]
     pub fn type_name(&self) -> &'static str {
         match self {
             Token::LBracket => "LBracket",
@@ -160,6 +161,7 @@ impl Lexer {
         atom.trim().to_string()
     }
 
+    #[allow(dead_code)]
     fn read_text_content(&mut self) -> String {
         let mut content = String::new();
         let mut first = true;

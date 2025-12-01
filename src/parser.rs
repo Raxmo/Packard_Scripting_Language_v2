@@ -71,6 +71,7 @@ impl Parser {
         self.tokens.get(self.pos).unwrap_or(&Token::Eof)
     }
 
+    #[allow(dead_code)]
     fn peek_token(&self) -> &Token {
         self.tokens.get(self.pos + 1).unwrap_or(&Token::Eof)
     }
@@ -505,6 +506,7 @@ impl Parser {
         })
     }
 
+    #[allow(dead_code)]
     fn parse_define_expr(&mut self) -> Result<Expr, PslError> {
         let target = self.parse_expr()?;
         self.expect(Token::RBracket)?;
@@ -536,6 +538,7 @@ impl Parser {
         })
     }
 
+    #[allow(dead_code)]
     fn parse_set_expr(&mut self) -> Result<Expr, PslError> {
         let target = self.parse_expr()?;
         self.expect(Token::RBracket)?;
@@ -548,6 +551,7 @@ impl Parser {
         })
     }
 
+    #[allow(dead_code)]
     fn parse_add_expr(&mut self) -> Result<Expr, PslError> {
         let target = self.parse_expr()?;
         self.expect(Token::RBracket)?;
