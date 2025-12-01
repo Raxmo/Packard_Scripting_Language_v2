@@ -33,7 +33,6 @@ impl Runtime {
             Expr::Item => Ok(Value::Item),
             
             Expr::Character(name) => {
-                // Return reference to character or error if not found
                 self.globals
                     .get(name)
                     .cloned()
@@ -41,13 +40,11 @@ impl Runtime {
             }
             
             Expr::Attribute(name) => {
-                // Create an attribute reference
-                Ok(Value::Text(format!("[attribute: {}]", name)))
+                Ok(Value::Text(name.clone()))
             }
             
-            Expr::Container(name) => {
-                // Create a container reference
-                Ok(Value::Text(format!("[container: {}]", name)))
+            Expr::Container(_name) => {
+                Ok(Value::Item)
             }
             
             Expr::Chapter(name) => {
@@ -105,18 +102,16 @@ impl Runtime {
     fn eval_define(&mut self, target: &Expr, body: &Expr) -> Result<Value, PslError> {
         match target {
             Expr::Character(name) => {
-                let container = Value::Container(HashMap::new());
-                self.globals.insert(name.clone(), container.clone());
+                let container = HashMap::new();
+                self.globals.insert(name.clone(), Value::Container(container.clone()));
                 
                 // Evaluate body to initialize attributes
-                self.eval_in_context(name, body)?;
+                self.eval_define_body(name.clone(), body)?;
                 
-                Ok(container)
+                Ok(Value::Container(container))
             }
-            Expr::Container(name) => {
-                let container = Value::Container(HashMap::new());
-                // Store in parent context (would need parent reference)
-                Ok(container)
+            Expr::Container(_name) => {
+                Ok(Value::Container(HashMap::new()))
             }
             _ => Err(PslError::RuntimeError(
                 "Invalid define target".to_string(),
@@ -124,43 +119,80 @@ impl Runtime {
         }
     }
 
-    fn eval_in_context(&mut self, context: &str, expr: &Expr) -> Result<Value, PslError> {
-        // This is a simplified version - we need to handle nested contexts properly
+    // Evaluates the body of a define statement within a character context
+    fn eval_define_body(&mut self, character: String, expr: &Expr) -> Result<Value, PslError> {
         match expr {
             Expr::SequenceExpr(exprs) => {
                 let mut last = Value::Null;
                 for e in exprs {
-                    last = self.eval_in_context(context, e)?;
+                    last = self.eval_define_body(character.clone(), e)?;
                 }
                 Ok(last)
             }
             Expr::Set { target, value } => {
-                if let Expr::Attribute(name) = &**target {
+                // Handle [[set: [attribute: name]]: [text: Hero]]
+                if let Expr::Attribute(attr_name) = &**target {
                     let val = self.eval(value)?;
-                    if let Some(Value::Container(map)) = self.globals.get_mut(context) {
-                        map.insert(name.clone(), val.clone());
-                        Ok(val)
+                    if let Some(Value::Container(map)) = self.globals.get_mut(&character) {
+                        map.insert(attr_name.clone(), val.clone());
+                        return Ok(val);
                     } else {
-                        Err(PslError::RuntimeError(format!("Context not found: {}", context)))
+                        return Err(PslError::RuntimeError(format!("Character not found: {}", character)));
                     }
-                } else {
-                    self.eval(expr)
                 }
+                self.eval(expr)
             }
-            Expr::Define { target, body } => {
-                if let Expr::Container(name) = &**target {
-                    let mut container = Value::Container(HashMap::new());
+            Expr::Define { target, body: define_body } => {
+                // Handle nested container definitions
+                if let Expr::Container(container_name) = &**target {
+                    let container_map = HashMap::new();
                     
-                    // Add the container to the parent
-                    if let Some(Value::Container(map)) = self.globals.get_mut(context) {
-                        map.insert(name.clone(), container.clone());
+                    // Add to parent character
+                    if let Some(Value::Container(char_map)) = self.globals.get_mut(&character) {
+                        char_map.insert(container_name.clone(), Value::Container(container_map.clone()));
                     }
                     
-                    // TODO: Initialize container contents from body
-                    Ok(container)
-                } else {
-                    self.eval(expr)
+                    // Initialize container contents
+                    self.eval_container_body(character.clone(), container_name.clone(), define_body)?;
+                    
+                    return Ok(Value::Container(container_map));
                 }
+                self.eval(expr)
+            }
+            _ => self.eval(expr),
+        }
+    }
+
+    // Evaluates the body of a container definition
+    fn eval_container_body(&mut self, character: String, container: String, expr: &Expr) -> Result<Value, PslError> {
+        match expr {
+            Expr::SequenceExpr(exprs) => {
+                let mut last = Value::Null;
+                for e in exprs {
+                    last = self.eval_container_body(character.clone(), container.clone(), e)?;
+                }
+                Ok(last)
+            }
+            Expr::Set { target, value } => {
+                // Handle [[set: [attribute: sword]]: [item:]]
+                if let Expr::Attribute(attr_name) = &**target {
+                    let val = self.eval(value)?;
+                    
+                    // Navigate: character -> container -> attribute
+                    if let Some(Value::Container(char_map)) = self.globals.get_mut(&character) {
+                        if let Some(Value::Container(cont_map)) = char_map.get_mut(&container) {
+                            cont_map.insert(attr_name.clone(), val.clone());
+                            return Ok(val);
+                        } else {
+                            return Err(PslError::RuntimeError(
+                                format!("Container {} not found in character {}", container, character)
+                            ));
+                        }
+                    } else {
+                        return Err(PslError::RuntimeError(format!("Character {} not found", character)));
+                    }
+                }
+                self.eval(expr)
             }
             _ => self.eval(expr),
         }
@@ -168,58 +200,420 @@ impl Runtime {
 
     fn eval_set(&mut self, target: &Expr, value: &Expr) -> Result<Value, PslError> {
         let val = self.eval(value)?;
-        // TODO: Implement path-based setting
+        
+        // Handle From expressions as targets
+        if let Expr::From { base, path } = target {
+            return self.set_via_path(base, path, val);
+        }
+        
         Ok(val)
     }
 
     fn eval_add(&mut self, target: &Expr, value: &Expr) -> Result<Value, PslError> {
         let val = self.eval(value)?;
-        // TODO: Implement path-based addition
+        
+        // Handle From expressions as targets
+        if let Expr::From { base, path } = target {
+            // For add, we need to get the existing value and combine with new value
+            let existing = self.get_via_path(base, path)?;
+            
+            // Type-specific addition
+            let result = match (existing, &val) {
+                (Value::Number(n), Value::Number(m)) => Value::Number(n + m),
+                (Value::Item, Value::Item) => Value::Item,
+                _ => return Err(PslError::TypeError(
+                    "Cannot add values of different types".to_string()
+                )),
+            };
+            
+            return self.set_via_path(base, path, result);
+        }
+        
         Ok(val)
     }
 
     fn eval_remove(&mut self, target: &Expr) -> Result<Value, PslError> {
-        // TODO: Implement path-based removal
+        // Handle From expressions as targets
+        if let Expr::From { base, path } = target {
+            return self.remove_via_path(base, path);
+        }
+        
         Ok(Value::Null)
     }
 
+    // Resolves a path starting from base and following path
     fn eval_from(&mut self, base: &Expr, path: &Expr) -> Result<Value, PslError> {
-        // This is complex - need to handle nested access
-        // For now, return a reference value
-        Ok(Value::Text(format!("[from: {:?} : {:?}]", base, path)))
+        self.get_via_path(base, path)
+    }
+
+    // Gets a value by following a path from a base
+    fn get_via_path(&mut self, base: &Expr, path: &Expr) -> Result<Value, PslError> {
+        // First evaluate the base to get the starting point
+        let base_val = self.eval(base)?;
+        
+        // Now follow the path
+        self.follow_path(base_val, path)
+    }
+
+    // Follows a path through containers/attributes
+    fn follow_path(&mut self, current: Value, path: &Expr) -> Result<Value, PslError> {
+        match path {
+            Expr::Attribute(name) => {
+                // Simple attribute access
+                if let Value::Container(map) = current {
+                    map.get(name)
+                        .cloned()
+                        .ok_or_else(|| PslError::RuntimeError(
+                            format!("Attribute {} not found", name)
+                        ))
+                } else {
+                    Err(PslError::TypeError(
+                        format!("Cannot access attribute on non-container value")
+                    ))
+                }
+            }
+            Expr::Container(name) => {
+                // Container access
+                if let Value::Container(map) = current {
+                    map.get(name)
+                        .cloned()
+                        .ok_or_else(|| PslError::RuntimeError(
+                            format!("Container {} not found", name)
+                        ))
+                } else {
+                    Err(PslError::TypeError(
+                        format!("Cannot access container on non-container value")
+                    ))
+                }
+            }
+            Expr::From { base, path: next_path } => {
+                // Nested from chain: [[from: [[from: x]: y]]: z]
+                // Follow the inner from first to get intermediate value
+                let intermediate = self.follow_path(current, base)?;
+                // Then follow the next path
+                self.follow_path(intermediate, next_path)
+            }
+            _ => Err(PslError::RuntimeError(
+                "Invalid path expression".to_string()
+            )),
+        }
+    }
+
+    // Sets a value at a path location
+    fn set_via_path(&mut self, base: &Expr, path: &Expr, value: Value) -> Result<Value, PslError> {
+        // Navigate through globals to find the right location and set it
+        self.navigate_and_set(base, path, value)
+    }
+
+    fn navigate_and_set(&mut self, base: &Expr, path: &Expr, value: Value) -> Result<Value, PslError> {
+        match base {
+            Expr::Character(char_name) => {
+                // Navigate to character and set via path
+                self.set_in_path(char_name.clone(), path, value)
+            }
+            Expr::From { base: inner_base, path: inner_path } => {
+                // Handle nested from by first resolving the inner path
+                match inner_base.as_ref() {
+                    Expr::Character(char_name) => {
+                        // [[from: [character: main]]: [container: bag]]
+                        self.set_in_nested_path(char_name.clone(), inner_path, path, value)
+                    }
+                    _ => Err(PslError::RuntimeError(
+                        "Complex nested base not supported".to_string()
+                    )),
+                }
+            }
+            _ => Err(PslError::RuntimeError(
+                "Invalid base in set path".to_string()
+            )),
+        }
+    }
+
+    fn set_in_path(&mut self, char_name: String, path: &Expr, value: Value) -> Result<Value, PslError> {
+        match path {
+            Expr::Attribute(attr_name) => {
+                // Direct character attribute
+                if let Some(Value::Container(map)) = self.globals.get_mut(&char_name) {
+                    map.insert(attr_name.clone(), value.clone());
+                    Ok(value)
+                } else {
+                    Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                }
+            }
+            Expr::From { base, path: next_path } => {
+                // Navigate through base first
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(char_map)) = self.globals.get_mut(&char_name) {
+                            if let Some(Value::Container(cont_map)) = char_map.get_mut(container_name) {
+                                Self::set_in_container(cont_map, next_path, value.clone())?;
+                                Ok(value)
+                            } else {
+                                Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                            }
+                        } else {
+                            Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid path base".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid path in set_in_path".to_string())),
+        }
+    }
+
+    fn set_in_nested_path(
+        &mut self,
+        char_name: String,
+        inner_path: &Expr,
+        final_path: &Expr,
+        value: Value,
+    ) -> Result<Value, PslError> {
+        match inner_path {
+            Expr::Container(container_name) => {
+                // Navigate character -> container -> path
+                if let Some(Value::Container(char_map)) = self.globals.get_mut(&char_name) {
+                    if let Some(Value::Container(cont_map)) = char_map.get_mut(container_name) {
+                        Self::set_in_container(cont_map, final_path, value.clone())?;
+                        Ok(value)
+                    } else {
+                        Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                    }
+                } else {
+                    Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                }
+            }
+            Expr::From { base, path: next_inner_path } => {
+                // Handle nested from
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(char_map)) = self.globals.get_mut(&char_name) {
+                            if let Some(Value::Container(cont_map)) = char_map.get_mut(container_name) {
+                                Self::set_in_nested_container(cont_map, next_inner_path, final_path, value.clone())?;
+                                Ok(value)
+                            } else {
+                                Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                            }
+                        } else {
+                            Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid nested path".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid inner path".to_string())),
+        }
+    }
+
+    fn set_in_container(
+        container: &mut HashMap<String, Value>,
+        path: &Expr,
+        value: Value,
+    ) -> Result<(), PslError> {
+        match path {
+            Expr::Attribute(name) => {
+                container.insert(name.clone(), value);
+                Ok(())
+            }
+            Expr::From { base, path: next_path } => {
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(inner_map)) = container.get_mut(container_name) {
+                            Self::set_in_container(inner_map, next_path, value)?;
+                            Ok(())
+                        } else {
+                            Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid nested path".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid path".to_string())),
+        }
+    }
+
+    fn set_in_nested_container(
+        container: &mut HashMap<String, Value>,
+        inner_path: &Expr,
+        final_path: &Expr,
+        value: Value,
+    ) -> Result<(), PslError> {
+        match inner_path {
+            Expr::Container(container_name) => {
+                if let Some(Value::Container(inner_map)) = container.get_mut(container_name) {
+                    Self::set_in_container(inner_map, final_path, value)?;
+                    Ok(())
+                } else {
+                    Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                }
+            }
+            Expr::From { base, path: next_inner_path } => {
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(inner_map)) = container.get_mut(container_name) {
+                            Self::set_in_nested_container(inner_map, next_inner_path, final_path, value)?;
+                            Ok(())
+                        } else {
+                            Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid nested path".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid inner path".to_string())),
+        }
+    }
+
+    // Removes a value at a path location
+    fn remove_via_path(&mut self, base: &Expr, path: &Expr) -> Result<Value, PslError> {
+        match base {
+            Expr::Character(char_name) => {
+                self.remove_in_path(char_name.clone(), path)
+            }
+            Expr::From { base: inner_base, path: inner_path } => {
+                match inner_base.as_ref() {
+                    Expr::Character(char_name) => {
+                        self.remove_in_nested_path(char_name.clone(), inner_path, path)
+                    }
+                    _ => Err(PslError::RuntimeError(
+                        "Complex nested paths not yet supported".to_string()
+                    )),
+                }
+            }
+            _ => Err(PslError::RuntimeError(
+                "Invalid base in remove path".to_string()
+            )),
+        }
+    }
+
+    fn remove_in_path(&mut self, char_name: String, path: &Expr) -> Result<Value, PslError> {
+        match path {
+            Expr::Attribute(attr_name) => {
+                if let Some(Value::Container(map)) = self.globals.get_mut(&char_name) {
+                    map.remove(attr_name)
+                        .ok_or_else(|| PslError::RuntimeError(format!("Attribute {} not found", attr_name)))
+                } else {
+                    Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                }
+            }
+            Expr::From { base, path: next_path } => {
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(char_map)) = self.globals.get_mut(&char_name) {
+                            if let Some(Value::Container(cont_map)) = char_map.get_mut(container_name) {
+                                Self::remove_from_container(cont_map, next_path)
+                            } else {
+                                Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                            }
+                        } else {
+                            Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid path base".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid path".to_string())),
+        }
+    }
+
+    fn remove_in_nested_path(
+        &mut self,
+        char_name: String,
+        inner_path: &Expr,
+        final_path: &Expr,
+    ) -> Result<Value, PslError> {
+        match inner_path {
+            Expr::Container(container_name) => {
+                if let Some(Value::Container(char_map)) = self.globals.get_mut(&char_name) {
+                    if let Some(Value::Container(cont_map)) = char_map.get_mut(container_name) {
+                        Self::remove_from_container(cont_map, final_path)
+                    } else {
+                        Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                    }
+                } else {
+                    Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                }
+            }
+            Expr::From { base, path: next_inner_path } => {
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(char_map)) = self.globals.get_mut(&char_name) {
+                            if let Some(Value::Container(cont_map)) = char_map.get_mut(container_name) {
+                                Self::remove_from_nested_container(cont_map, next_inner_path, final_path)
+                            } else {
+                                Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                            }
+                        } else {
+                            Err(PslError::RuntimeError(format!("Character {} not found", char_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid nested path".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid inner path".to_string())),
+        }
+    }
+
+    fn remove_from_container(container: &mut HashMap<String, Value>, path: &Expr) -> Result<Value, PslError> {
+        match path {
+            Expr::Attribute(name) => {
+                container.remove(name)
+                    .ok_or_else(|| PslError::RuntimeError(format!("Attribute {} not found", name)))
+            }
+            Expr::From { base, path: next_path } => {
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(inner_map)) = container.get_mut(container_name) {
+                            Self::remove_from_container(inner_map, next_path)
+                        } else {
+                            Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid nested path".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid path".to_string())),
+        }
+    }
+
+    fn remove_from_nested_container(
+        container: &mut HashMap<String, Value>,
+        inner_path: &Expr,
+        final_path: &Expr,
+    ) -> Result<Value, PslError> {
+        match inner_path {
+            Expr::Container(container_name) => {
+                if let Some(Value::Container(inner_map)) = container.get_mut(container_name) {
+                    Self::remove_from_container(inner_map, final_path)
+                } else {
+                    Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                }
+            }
+            Expr::From { base, path: next_inner_path } => {
+                match base.as_ref() {
+                    Expr::Container(container_name) => {
+                        if let Some(Value::Container(inner_map)) = container.get_mut(container_name) {
+                            Self::remove_from_nested_container(inner_map, next_inner_path, final_path)
+                        } else {
+                            Err(PslError::RuntimeError(format!("Container {} not found", container_name)))
+                        }
+                    }
+                    _ => Err(PslError::RuntimeError("Invalid nested path".to_string())),
+                }
+            }
+            _ => Err(PslError::RuntimeError("Invalid inner path".to_string())),
+        }
     }
 
     fn eval_keyword(&mut self, name: &str, _params: &[(String, Expr)]) -> Result<Value, PslError> {
-        // Handle special keywords like if, display, option, etc.
         match name {
-            "if" => {
-                // TODO: Implement conditional logic
-                Ok(Value::Null)
-            }
-            "display" => {
-                // TODO: Implement display logic
-                Ok(Value::Null)
-            }
-            "option" => {
-                // TODO: Implement option logic
-                Ok(Value::Null)
-            }
-            "as" => {
-                // TODO: Implement narrative display
-                Ok(Value::Null)
-            }
-            "goto" => {
-                // TODO: Implement navigation
-                Ok(Value::Null)
-            }
-            "exists" => {
-                // TODO: Implement existence check
-                Ok(Value::Flag(true))
-            }
-            _ => Err(PslError::RuntimeError(format!(
-                "Unknown keyword: {}",
-                name
-            ))),
+            "if" => Ok(Value::Null),
+            "display" => Ok(Value::Null),
+            "option" => Ok(Value::Null),
+            "as" => Ok(Value::Null),
+            "goto" => Ok(Value::Null),
+            "exists" => Ok(Value::Flag(true)),
+            _ => Err(PslError::RuntimeError(format!("Unknown keyword: {}", name))),
         }
     }
 
