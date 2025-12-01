@@ -20,6 +20,29 @@ pub enum Token {
     Eof,
 }
 
+impl Token {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Token::LBracket => "LBracket",
+            Token::RBracket => "RBracket",
+            Token::Colon => "Colon",
+            Token::Comma => "Comma",
+            Token::Atom(_) => "Atom",
+            Token::Plus => "Plus",
+            Token::Minus => "Minus",
+            Token::Star => "Star",
+            Token::Slash => "Slash",
+            Token::Gt => "Gt",
+            Token::Lt => "Lt",
+            Token::GtEq => "GtEq",
+            Token::LtEq => "LtEq",
+            Token::EqEq => "EqEq",
+            Token::NotEq => "NotEq",
+            Token::Eof => "Eof",
+        }
+    }
+}
+
 pub struct Lexer {
     input: Vec<char>,
     pos: usize,

@@ -39,6 +39,12 @@ fn main() {
 fn run(source: &str) -> Result<(), PslError> {
     // Tokenize
     let tokens = lexer::tokenize(source)?;
+    
+    if std::env::args().any(|a| a == "--debug-tokens") {
+        for (i, token) in tokens.iter().enumerate() {
+            eprintln!("{}: {:?}", i, token);
+        }
+    }
 
     // Parse
     let program = parser::parse(tokens)?;
