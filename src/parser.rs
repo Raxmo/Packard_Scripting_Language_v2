@@ -29,6 +29,10 @@ pub enum Expr {
         base: Box<Expr>,
         path: Box<Expr>,
     },
+    If {
+        condition: Box<Expr>,
+        body: Box<Expr>,
+    },
     Attribute(String),
     Character(String),
     Container(String),
@@ -289,6 +293,12 @@ impl Parser {
                         return Ok(Expr::From {
                             base: Box::new(target),
                             path: body,
+                        })
+                    }
+                    "if" => {
+                        return Ok(Expr::If {
+                            condition: Box::new(target),
+                            body,
                         })
                     }
                     "chapter" => {

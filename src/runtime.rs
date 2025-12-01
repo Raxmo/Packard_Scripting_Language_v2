@@ -84,6 +84,10 @@ impl Runtime {
                 self.eval_from(base, path)
             }
             
+            Expr::If { condition, body } => {
+                self.eval_if_expr(condition, body)
+            }
+            
             Expr::SequenceExpr(exprs) => {
                 let mut last = Value::Null;
                 for e in exprs {
@@ -257,6 +261,31 @@ impl Runtime {
     // Resolves a path starting from base and following path
     fn eval_from(&mut self, base: &Expr, path: &Expr) -> Result<Value, PslError> {
         self.get_via_path(base, path)
+    }
+
+    // Evaluates an if expression: execute body if condition is truthy
+    fn eval_if_expr(&mut self, condition: &Expr, body: &Expr) -> Result<Value, PslError> {
+        let cond_val = self.eval(condition)?;
+        
+        // Check if condition is truthy
+        if self.is_truthy(&cond_val) {
+            // Execute the body
+            self.eval(body)
+        } else {
+            // Don't execute the body, return null
+            Ok(Value::Null)
+        }
+    }
+
+    fn is_truthy(&self, val: &Value) -> bool {
+        match val {
+            Value::Flag(b) => *b,
+            Value::Number(n) => *n != 0.0,
+            Value::Text(s) => !s.is_empty(),
+            Value::Item => true,
+            Value::Container(_) => true,
+            Value::Null => false,
+        }
     }
 
     // Gets a value by following a path from a base
