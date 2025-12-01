@@ -1,0 +1,34 @@
+// Simple test to verify all major features work
+[[define: [character: alice]]:
+	[[set: [attribute: name]]: [text: Alice]],
+	[[set: [attribute: age]]: [number: 25]],
+	[[define: [container: inventory]]:
+		[[set: [attribute: coins]]: [number: 100]]
+	]
+],
+
+[[chapter: start]: [text: A Simple Adventure]],
+
+[[as: [[from: [character: alice]]: [attribute: name]]]:
+[text:
+I wake up with 100 coins in my pocket.
+]],
+
+[[display: [text: What should I do?]]:
+	[[option: [text: Check inventory]]: [goto: [section: inventory]]],
+	[[option: [text: Go to shop]]: [goto: [section: shop]]]
+],
+
+[section: inventory],
+[[as:]:
+[text:
+I check my inventory and count my coins.
+]],
+
+[section: shop],
+[[as:]:
+[text:
+The shopkeeper smiles at me.
+]],
+
+[section: ending]
