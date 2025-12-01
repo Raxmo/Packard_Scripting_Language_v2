@@ -2,11 +2,11 @@
 
 An interactive fiction language designed for writers who want to create branching narratives without deep programming knowledge.
 
-**Current Status**: Parser 100% Complete, Runtime 95% Complete
+**Current Status**: Parser 100% Complete, Runtime 100% Complete, Interactive Mode Complete
 
 ## Overview
 
-PSL is a Lisp-inspired scripting language with square brackets and keyword parameters, specifically designed for interactive fiction. Writers can define characters, containers of attributes, set variables, create conditional branches, and build interactive choice-driven stories.
+PSL is a Lisp-inspired scripting language with square brackets and keyword parameters, specifically designed for interactive fiction. Writers can define characters, containers of attributes, set variables, create conditional branches, and build interactive choice-driven stories. The interpreter supports both batch execution and interactive playable mode.
 
 ## Quick Start
 
@@ -15,9 +15,16 @@ PSL is a Lisp-inspired scripting language with square brackets and keyword param
 cargo build --release
 ```
 
-### Run a Story
+### Run a Story (Non-Interactive)
+Outputs all possible paths:
 ```bash
 cargo run --bin packard <story.psl>
+```
+
+### Play a Story (Interactive)
+Experience the story as a player, making real choices:
+```bash
+cargo run --bin packard_interactive <story.psl>
 ```
 
 ### Example
@@ -142,21 +149,30 @@ Example output:
 ## Known Limitations
 
 1. **No Save/Load**: Story state isn't persisted between runs
-2. **No Interactive Mode**: Currently just outputs all text at once (future enhancement)
-3. **Limited Text Formatting**: No bold, italics, or other formatting
-4. **No Expressions in Text**: Can't embed `[from: ...]` directly in text strings
-5. **No Audio/Visual**: Pure text-based experience
+2. **Limited Text Formatting**: No bold, italics, or other formatting
+3. **No Expressions in Text**: Can't embed `[from: ...]` directly in text strings
+4. **No Audio/Visual**: Pure text-based experience
 
 ## Testing
 
-Run the baseline test:
+Run the baseline test (non-interactive output):
 ```bash
 cargo run --bin packard baseline.psl
 ```
 
-Run a simple test:
+Run a simple test (non-interactive):
 ```bash
 cargo run --bin packard test_simple.psl
+```
+
+Play an interactive test story:
+```bash
+cargo run --bin packard_interactive test_interactive.psl
+```
+
+Run the test suite:
+```bash
+cargo test
 ```
 
 ## Development
@@ -178,8 +194,9 @@ See `AGENTS.md` for detailed development guidelines.
 
 ## Next Steps
 
-- Build comprehensive test suite
-- Interactive mode with user input handling
-- Save/load functionality
+- Save/load functionality (persist game state)
 - Performance optimizations
 - Enhanced error messages with line numbers
+- Text formatting (bold, italics, colors)
+- Multiplayer/network support
+- Undo/redo functionality
