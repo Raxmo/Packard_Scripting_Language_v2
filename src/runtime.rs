@@ -605,16 +605,102 @@ impl Runtime {
         }
     }
 
-    fn eval_keyword(&mut self, name: &str, _params: &[(String, Expr)]) -> Result<Value, PslError> {
+    fn eval_keyword(&mut self, name: &str, params: &[(String, Expr)]) -> Result<Value, PslError> {
         match name {
-            "if" => Ok(Value::Null),
-            "display" => Ok(Value::Null),
-            "option" => Ok(Value::Null),
-            "as" => Ok(Value::Null),
-            "goto" => Ok(Value::Null),
-            "exists" => Ok(Value::Flag(true)),
+            "exists" => self.eval_exists(params),
+            "if" => self.eval_if(params),
+            "display" => self.eval_display(params),
+            "option" => self.eval_option(params),
+            "as" => self.eval_as(params),
+            "goto" => self.eval_goto(params),
+            "chapter" => self.eval_chapter(params),
             _ => Err(PslError::RuntimeError(format!("Unknown keyword: {}", name))),
         }
+    }
+
+    fn eval_exists(&mut self, params: &[(String, Expr)]) -> Result<Value, PslError> {
+        // Extract the target from params and check if it exists
+        for (key, expr) in params {
+            if key == "body" {
+                match self.eval(expr) {
+                    Ok(Value::Null) => return Ok(Value::Flag(false)),
+                    Ok(_) => return Ok(Value::Flag(true)),
+                    Err(PslError::NameError(_)) | Err(PslError::RuntimeError(_)) => {
+                        return Ok(Value::Flag(false))
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        Ok(Value::Flag(false))
+    }
+
+    fn eval_if(&mut self, params: &[(String, Expr)]) -> Result<Value, PslError> {
+        // The if keyword is parsed as [[if: condition]: body] 
+        // where condition becomes the target and body is the body
+        // But how is this stored in the Keyword? Let me check what we get
+        for (key, expr) in params {
+            if key == "body" {
+                // Evaluate the condition
+                let cond_val = self.eval(expr)?;
+                // Return the truthy value
+                match cond_val {
+                    Value::Flag(b) => return Ok(Value::Flag(b)),
+                    Value::Number(n) => return Ok(Value::Flag(n != 0.0)),
+                    Value::Text(s) => return Ok(Value::Flag(!s.is_empty())),
+                    Value::Item => return Ok(Value::Flag(true)),
+                    Value::Container(_) => return Ok(Value::Flag(true)),
+                    Value::Null => return Ok(Value::Flag(false)),
+                }
+            }
+        }
+        Ok(Value::Flag(false))
+    }
+
+    fn eval_display(&mut self, params: &[(String, Expr)]) -> Result<Value, PslError> {
+        // Display text and options - for now, just evaluate params
+        for (_key, expr) in params {
+            let _ = self.eval(expr)?;
+        }
+        Ok(Value::Null)
+    }
+
+    fn eval_option(&mut self, params: &[(String, Expr)]) -> Result<Value, PslError> {
+        // Option for user selection - for now, just evaluate params
+        for (_key, expr) in params {
+            let _ = self.eval(expr)?;
+        }
+        Ok(Value::Null)
+    }
+
+    fn eval_as(&mut self, params: &[(String, Expr)]) -> Result<Value, PslError> {
+        // Narrative display with label - for now, just evaluate params
+        for (_key, expr) in params {
+            let _ = self.eval(expr)?;
+        }
+        Ok(Value::Null)
+    }
+
+    fn eval_goto(&mut self, params: &[(String, Expr)]) -> Result<Value, PslError> {
+        // Navigate to chapter or section - for now, just evaluate params
+        for (_key, expr) in params {
+            let _ = self.eval(expr)?;
+        }
+        Ok(Value::Null)
+    }
+
+    fn eval_chapter(&mut self, params: &[(String, Expr)]) -> Result<Value, PslError> {
+        // Chapter marker - set current chapter
+        for (key, expr) in params {
+            if key == "id" {
+                if let Expr::Chapter(name) = expr {
+                    self.current_chapter = Some(name.clone());
+                }
+            } else if key == "body" {
+                let _ = self.eval(expr)?;
+            }
+        }
+        Ok(Value::Null)
     }
 
     fn eval_comparison(&mut self, op: &str, left: &Expr, right: &Expr) -> Result<Value, PslError> {
