@@ -59,5 +59,18 @@ fn run(source: &str) -> Result<(), PslError> {
     let mut runtime = runtime::Runtime::new();
     runtime.execute(program)?;
 
+    // Display output
+    println!("\n=== STORY OUTPUT ===\n");
+    for line in runtime.get_output() {
+        println!("{}", line);
+    }
+
+    if !runtime.get_options().is_empty() {
+        println!("\n--- OPTIONS ---");
+        for (text, target) in runtime.get_options() {
+            println!("  > {} -> {}", text, target);
+        }
+    }
+
     Ok(())
 }

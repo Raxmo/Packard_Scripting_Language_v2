@@ -126,7 +126,7 @@ impl Lexer {
                 // For spaces/newlines: only continue if content already exists
                 if (ch == ' ' || ch == '\t' || ch == '\n') && !atom.is_empty() {
                     // Consume the space/newline, but check what comes next
-                    let start_pos = self.pos;
+                    let _start_pos = self.pos;
                     self.advance();
                     
                     // Skip additional whitespace to see what's next

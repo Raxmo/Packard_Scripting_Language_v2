@@ -311,6 +311,16 @@ impl Parser {
                             ],
                         })
                     }
+                    "display" | "option" | "as" | "goto" => {
+                        // These keywords store both id (target) and body
+                        return Ok(Expr::Keyword {
+                            name: keyword,
+                            params: vec![
+                                ("id".to_string(), target),
+                                ("body".to_string(), body.as_ref().clone()),
+                            ],
+                        })
+                    }
                     _ => {
                         return Ok(Expr::Keyword {
                             name: keyword,
